@@ -2,7 +2,7 @@
 
 Generated: 2026-08-04
 
-Last manual update: 2026-09-11
+Last manual update: 2026-09-13
 
 This is the durable branch-to-claim inventory for the maintained analysis. The
 machine-readable table is `docs/statistical_model_inventory.tsv`; the validator
@@ -29,21 +29,22 @@ The current row classes are:
 ## Current Read
 
 - `m1_stier_11` remains the only promoted Haida Gwaii population baseline.
-- `m3_bc` is the current coastwide candidate by full-fit calibration, but the
-  completed robust K-fold comparison is positive but uncertain; do not promote
-  it as a clear predictive winner over `m1_bc`.
+- `m3_bc_marginal` is the current statistically usable coastwide
+  transfer/generality sensitivity. The original full-state `m3_bc` remains
+  useful provenance, but low E-BFMI and unstable PSIS-LOO mean it should not
+  carry the final coastwide transfer claim.
 - `m1_bc_geom` and `m3_bc_geom` are conservative geometry-repair candidates
   added after the 2026-09-11 full-fit refresh showed low E-BFMI and unstable
   PSIS in the original coastwide M1/M3 fits. They remove unused range
   parameters and simplify initial-state/scale geometry. They are diagnostic
   candidates only until smoke tests, full post-fit gates, and robust CV clear.
-- `m1_bc_marginal` and `m3_bc_marginal` are stronger geometry-repair
-  candidates that integrate over latent section-year states with a Kalman
-  filter and sample latent states in generated quantities. Local subset and
-  all-area pilots cleared the hard HMC geometry gate, and full GRIT production
-  fits now clear the sampler and PSIS-LOO gates. Within this repaired family,
-  `m3_bc_marginal` is the statistically usable coastwide sensitivity, but it is
-  a geometry/LOO repair rather than a new biological mechanism.
+- `m1_bc_marginal` and `m3_bc_marginal` integrate over latent section-year
+  states with a Kalman filter and sample latent states in generated quantities.
+  Local subset and all-area pilots cleared the hard HMC geometry gate, and full
+  GRIT production fits now clear the sampler and PSIS-LOO gates. Within this
+  repaired family, `m3_bc_marginal` is the statistically usable coastwide
+  sensitivity, but it is a geometry/LOO repair rather than a new biological
+  mechanism.
 - Public CSAS Appendix B catch tables are now represented by the
   `bc_catch_pressure_sensitivity` row. Those branches are negative
   sensitivities: they do not materially improve M1/M3 inference and both fail

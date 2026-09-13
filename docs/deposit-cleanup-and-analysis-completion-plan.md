@@ -381,6 +381,22 @@ Remaining work:
   pruned from `/home/astier/herring-bc-stage/results/`, reducing the remote
   result directory to `1.3M` while preserving marginal session-info files.
 
+2026-09-13 manuscript-gate update:
+
+- added `Code/probes/07bx_manuscript_model_evidence_table.R`, which writes the
+  cross-analysis claim gate
+  `Output/diagnostics/manuscript_model_evidence_table.{csv,md}`;
+- added `Code/probes/07by_bottomup_covariate_model_readiness.R`, which writes
+  `Output/diagnostics/bottomup_covariate_model_readiness.{csv,md}`;
+- current model hierarchy is now explicit: `m1_stier_11` remains the only
+  promoted Haida Gwaii baseline; `m3_bc_marginal` is the statistically usable
+  coastwide transfer/generality sensitivity; predator, catch-pressure,
+  heatwave, and satellite Chl-a products remain held, failed, or context-only;
+- the bottom-up decision is also explicit: do not launch a new heatwave, SST,
+  or satellite Chl-a Stan branch from the present screens. A real bottom-up
+  model is data-blocked by the need for in-situ zooplankton biomass/community
+  or prey-quality covariates.
+
 ### 5. Reproducibility
 
 Status: navigable but not clone-to-figure complete.
@@ -430,8 +446,9 @@ For a comprehensive paper, the remaining gaps are:
    11-section versus 9-focal reporting.
 2. Consolidate the positive-spawn fit caveat into methods/results language so
    early surface-era magnitudes are not overread.
-3. Build a single model-status table for the supplement that separates
-   promoted, held sensitivity, archived, smoke-only, and data-blocked branches.
+3. Move `Output/diagnostics/manuscript_model_evidence_table.md` into the
+   supplement/manuscript table set, or regenerate it at render time from
+   `Code/probes/07bx_manuscript_model_evidence_table.R`.
 4. Add an appendix that explains zero treatment and why detection-aware zeros
    are sensitivity analyses, not the baseline.
 5. Decide whether EWS, reversibility/hysteresis, and bioeconomics are part of

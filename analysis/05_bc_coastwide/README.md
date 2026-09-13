@@ -1,6 +1,6 @@
 # `analysis/05_bc_coastwide/` — BC-coastwide hierarchical metapopulation
 
-Extension of the section-level M1 herring metapopulation analysis from Haida Gwaii (11 sections) to all 8 DFO stock-area codes across British Columbia (~100 sections). Fits hierarchical M1 (baseline), M3 (Gompertz density-dependence), M5 (predator-mediated), catch-pressure sensitivities using public CSAS Appendix B assessment catch tables, and marginalized M1/M3 geometry-repair candidates.
+Extension of the section-level M1 herring metapopulation analysis from Haida Gwaii (11 sections) to all 8 DFO stock-area codes across British Columbia (~100 sections). Fits hierarchical M1 (baseline), M3 (Gompertz density-dependence), M5 (predator-mediated), catch-pressure sensitivities using public CSAS Appendix B assessment catch tables, and completed marginalized M1/M3 geometry-repair sensitivities.
 
 ## Layout
 
@@ -63,7 +63,7 @@ This workstream reads from the core pipeline (`R/`, `Data/`, `Output/`, sibling 
 | `Data/processed/bc_stan_data.rds` | Stan data list for M1/M3/M5 and catch-pressure sensitivities | `scripts/05` |
 | `analysis/05_bc_coastwide/output/m{1,3,5}_bc_fit.rds` | Production fits (cloud) | `scripts/06`–`08` |
 | `analysis/05_bc_coastwide/output/m{1,3}_bc_geom_fit.rds` | Conservative geometry-repair candidate fits | `scripts/06c`, `scripts/07c` |
-| `analysis/05_bc_coastwide/output/m{1,3}_bc_marginal_fit.rds` | Marginalized state-space geometry-repair candidate fits | `scripts/06d`, `scripts/07d` |
+| `analysis/05_bc_coastwide/output/m{1,3}_bc_marginal_fit.rds` | Completed marginalized state-space geometry-repair sensitivity fits | `scripts/06d`, `scripts/07d` |
 | `analysis/05_bc_coastwide/output/m{1,3}_bc_catch_pressure_fit.rds` | Production catch-pressure sensitivity fits | `scripts/06b`, `scripts/07b` |
 | `analysis/05_bc_coastwide/output/m1_bc_subset_HG_WCVI_fit.rds` | Integration-test subset fit | `scripts/06` |
 | `Output/diagnostics/bc_coastwide_mcmc_diagnostics.md` | R̂ / ESS / divergent transitions | `scripts/09` |
@@ -73,6 +73,8 @@ This workstream reads from the core pipeline (`R/`, `Data/`, `Output/`, sibling 
 | `Output/diagnostics/bc_coastwide_model_status_table.{csv,md}` | Coastwide branch status and claim gate | `scripts/09` |
 | `Output/diagnostics/bc_catch_pressure_model_readout.{csv,md}` | Claim-gated readout for CSAS catch-pressure branches | `scripts/09b` |
 | `Output/diagnostics/bc_marginal_repair_readout.{csv,md}` | Claim-gated readout for marginalized state-space repair branches | `scripts/09c` |
+| `Output/diagnostics/manuscript_model_evidence_table.{csv,md}` | Manuscript-facing model and diagnostic claim gate | `Code/probes/07bx` |
+| `Output/diagnostics/bottomup_covariate_model_readiness.{csv,md}` | Heatwave, Chl-a, and zooplankton model-readiness gate | `Code/probes/07by` |
 | `Output/diagnostics/bc_comparative_areas.{csv,md}` | Recovery curves per stock area | `scripts/10` |
 | `Output/diagnostics/bc_portfolio_metrics.{csv,md}` | Synchrony / CV-ratio / occupancy | `scripts/11` |
 | `Output/figures/bc_coastwide_fig{1..5}.{pdf,png}` | 5 manuscript figures | `scripts/12` |
@@ -120,6 +122,8 @@ Rscript analysis/05_bc_coastwide/scripts/09c_marginal_repair_readout.R
 Rscript analysis/05_bc_coastwide/scripts/10_comparative_areas.R
 Rscript analysis/05_bc_coastwide/scripts/11_bc_portfolio.R
 Rscript analysis/05_bc_coastwide/scripts/12_manuscript_figures.R
+Rscript Code/probes/07bx_manuscript_model_evidence_table.R
+Rscript Code/probes/07by_bottomup_covariate_model_readiness.R
 
 # Phase 6: robust comparison if PSIS-LOO has high Pareto-k cells
 bash hpc/submit_grit_bc_kfold.sh 5
@@ -165,15 +169,16 @@ material.
 
 ## Current model-use gate
 
-As of the 2026-09-11 full-fit refresh, `m3_bc` still has the best coastwide
-positive-spawn calibration (`0.317` versus `0.400` log10 RMSE for `m1_bc`) and
-higher full-fit PSIS elpd than `m1_bc`, but all coastwide branches fail the
-sampler/LOO gate. Robust 5-fold CV completed earlier and was positive but
-uncertain for `m3_bc` (`+24.9` elpd, approximate SE `92.3`; held-out RMSE
-`0.621` versus `0.626` log10). Treat `m3_bc` as a coastwide
-candidate/sensitivity, not a promoted extension. `m5_bc` failed badly
-(max Rhat `14.85`, min ESS `2.0`, `10,000` treedepth hits) and must not be
-used as predator-effect evidence.
+As of the 2026-09-11 full-fit refresh, the original full-state `m3_bc` had the
+best coastwide positive-spawn calibration (`0.317` versus `0.400` log10 RMSE
+for `m1_bc`) and higher full-fit PSIS elpd than `m1_bc`, but the original
+full-state M1/M3 branches fail the sampler/LOO gate. Robust 5-fold CV completed
+earlier and was positive but uncertain for the original `m3_bc` (`+24.9` elpd,
+approximate SE `92.3`; held-out RMSE `0.621` versus `0.626` log10). Treat
+those original full-state M1/M3 fits as provenance for the repair path, not as
+the final coastwide transfer claim. `m5_bc` failed badly (max Rhat `14.85`,
+min ESS `2.0`, `10,000` treedepth hits) and must not be used as predator-effect
+evidence.
 The immediate repair path tested `m1_bc_geom` and `m3_bc_geom`: conservative
 state-space variants that keep centered latent states but remove the unused
 range parameter, simplify the initial-state hierarchy, and tighten scale priors.
