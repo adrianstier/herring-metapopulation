@@ -15,7 +15,14 @@ suppressPackageStartupMessages({
 
 source(here::here("R", "00_setup.R"))
 
-obj <- readRDS(here::here("analysis", "05_bc_coastwide", "output", "m1_bc_fit.rds"))
+MODEL_ID <- Sys.getenv("BC_MODEL_ID", unset = "m3_bc_marginal")
+fit_path <- here::here("analysis", "05_bc_coastwide", "output",
+                       paste0(MODEL_ID, "_fit.rds"))
+if (!file.exists(fit_path)) {
+  stop("Missing coastwide fit for BC_MODEL_ID=", MODEL_ID, ": ", fit_path)
+}
+
+obj <- readRDS(fit_path)
 fit <- obj$fit
 section_meta <- obj$section_meta
 stock_areas <- obj$stock_areas
@@ -44,6 +51,7 @@ for (sa in stock_areas) {
     yi <- match(yr, YEARS)
     val <- mean(z_mean[sec_idx, yi])
     results[[length(results) + 1]] <- tibble(
+      model = MODEL_ID,
       stock_area = sa,
       years_post_event = yp,
       recovery_metric_name = "mean_log_biomass",
@@ -56,6 +64,7 @@ write_csv(out, here::here("Output", "diagnostics", "bc_comparative_areas.csv"))
 md <- c("# BC comparative-areas recovery",
         "",
         paste("Generated:", format(Sys.time())),
+        paste("Model:", MODEL_ID),
         "",
         knitr::kable(out |> pivot_wider(names_from = years_post_event,
                                         values_from = recovery_metric_value)))

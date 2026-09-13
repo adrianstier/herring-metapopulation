@@ -27,6 +27,7 @@ PRED_REPO <- Sys.getenv("PREDATOR_REPO_PATH",
 stopifnot(dir.exists(PRED_REPO))
 
 bc_spawn <- read_csv(here::here("Data", "processed", "bc_spawn_by_section_year.csv"),
+                     na = character(),
                      show_col_types = FALSE)
 section_key <- bc_spawn |>
   distinct(stock_area, statistical_area, section) |>
@@ -35,9 +36,15 @@ section_key <- bc_spawn |>
 # ── 1. Harbour seal: BC-wide interpolated curve (Olesiuk 2010), stock-area scope ──
 hs_path <- file.path(PRED_REPO, "data", "processed", "consumption_budget",
                      "harbour_seal_BC_interpolated_along_Olesiuk_2010_curve.csv")
+if (!file.exists(hs_path)) {
+  hs_path <- file.path(PRED_REPO, "data", "processed", "mammals",
+                       "harbour_seal_BC_interpolated_along_Olesiuk_2010_curve_1965-2019.csv")
+}
 hs <- if (file.exists(hs_path)) {
   read_csv(hs_path, show_col_types = FALSE) |>
-    select(year, harbour_seal_index = any_of(c("seal_n", "abundance", "value")))
+    janitor::clean_names() |>
+    select(year, harbour_seal_index = any_of(c("seal_n", "abundance",
+                                               "value", "count")))
 } else {
   warning("harbour seal file missing: ", hs_path)
   tibble(year = integer(), harbour_seal_index = numeric())
@@ -46,9 +53,18 @@ hs <- if (file.exists(hs_path)) {
 # ── 2. Steller sea lion: BC-wide counts, stock-area scope ──
 ssl_path <- file.path(PRED_REPO, "data", "processed", "consumption_budget",
                       "steller_sea_lion_BC_pup_count.csv")
+if (!file.exists(ssl_path)) {
+  ssl_path <- file.path(PRED_REPO, "data", "processed", "mammals",
+                        "ssl_bc_breeding_summed_annual_2026.csv")
+}
 ssl <- if (file.exists(ssl_path)) {
-  read_csv(ssl_path, show_col_types = FALSE) |>
-    select(year, steller_index = any_of(c("pups", "n", "count")))
+  ssl_raw <- read_csv(ssl_path, show_col_types = FALSE) |>
+    janitor::clean_names()
+  steller_col <- intersect(c("non_pup", "pups", "pup", "n", "count"),
+                           names(ssl_raw))[[1]]
+  ssl_raw |>
+    transmute(year = as.integer(year),
+              steller_index = as.numeric(.data[[steller_col]]))
 } else {
   warning("steller sea lion file missing: ", ssl_path)
   tibble(year = integer(), steller_index = numeric())
@@ -57,9 +73,15 @@ ssl <- if (file.exists(ssl_path)) {
 # ── 3. Humpback whale: BC-wide photo-ID counts ──
 hw_path <- file.path(PRED_REPO, "data", "processed", "consumption_budget",
                      "cheeseman_2024_humpback_BC_annual_indiv_encounters.csv")
+if (!file.exists(hw_path)) {
+  hw_path <- file.path(PRED_REPO, "data", "processed", "mammals",
+                       "cheeseman_2024_humpback_BC_annual_indiv_encounters.csv")
+}
 hw <- if (file.exists(hw_path)) {
   read_csv(hw_path, show_col_types = FALSE) |>
-    select(year, humpback_index = any_of(c("n_indiv_BC", "n", "abundance")))
+    janitor::clean_names() |>
+    select(year, humpback_index = any_of(c("n_indiv_bc", "n_indiv_BC",
+                                           "n", "abundance")))
 } else {
   warning("humpback file missing: ", hw_path)
   tibble(year = integer(), humpback_index = numeric())
@@ -87,9 +109,9 @@ cat("Source repo: `", PRED_REPO, "`\n\n")
 cat("## Per-species notes\n\n")
 cat("| Species | Source file | Native resolution | Used in model as |\n")
 cat("|---|---|---|---|\n")
-cat("| harbour_seal | `harbour_seal_BC_interpolated_along_Olesiuk_2010_curve.csv` | BC-wide year | Stock-area-level covariate (replicated across sections within a stock area is identical) |\n")
-cat("| steller | `steller_sea_lion_BC_pup_count.csv` | BC-wide year | Stock-area-level covariate (same) |\n")
-cat("| humpback | `cheeseman_2024_humpback_BC_annual_indiv_encounters.csv` | BC-wide year | Stock-area-level covariate (same) |\n")
+cat("| harbour_seal | `", hs_path, "` | BC-wide year | Stock-area-level covariate (replicated across sections within a stock area is identical) |\n", sep = "")
+cat("| steller | `", ssl_path, "` | BC-wide year | Stock-area-level covariate (same; non-pup count preferred when available) |\n", sep = "")
+cat("| humpback | `", hw_path, "` | BC-wide year | Stock-area-level covariate (same; BC unique individuals preferred when available) |\n", sep = "")
 cat("\n")
 cat("**Implication:** in scripts/08_fit_m5_bc.R, predator covariates enter as\n")
 cat("year-by-stock-area effects, not section-by-year. Section-level predator\n")

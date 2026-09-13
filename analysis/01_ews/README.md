@@ -35,7 +35,11 @@ All scripts use `here::here()` for paths. Run order is sequential; later scripts
 
 ## Tests
 
-`tests/testthat/test-early-warning.R` covers the shared lib's analytic invariants.
+`tests/testthat/test-early-warning.R` covers the shared lib's analytic
+invariants and validates existing EWS output contracts. By default it does not
+rerun the expensive EWS scripts inside the test process; set
+`RUN_EWS_REBUILDS=1` when the intent is to regenerate those outputs as part of
+the test.
 
 ## Specs and plans
 

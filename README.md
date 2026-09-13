@@ -14,12 +14,36 @@ If you are reading this repository for the first time, use this order:
 3. `CLAUDE.md` for active project state, talk firewall rules, and sprint context.
 4. `docs/collaborator-reading-guide.md` for the codebase reading order and file map.
 5. `docs/stan-model-map.md` for which Stan files are primary, archival, or generated artifacts.
-6. `R/00_setup.R`, `R/01_data_cleaning.R`, `R/10_spatial_data.R`, and `R/02_prepare_model_data.R` for the data contract.
-7. `inst/stan/*.stan` plus `R/03_fit_model.R` for the model contract.
-8. `R/05_portfolio.R`, `R/08_occupancy_model.R`, `R/06_figures.R`, and `R/07_lecture_figures.R` for interpretation and communication.
-9. `docs/talk-model-claim-control-sheet.md` before turning any model result into talk language.
+6. `docs/statistical_model_inventory.md` and `docs/statistical_model_inventory.tsv` for the maintained model-family inventory and branch-to-claim gate.
+7. `docs/deposit-cleanup-and-analysis-completion-plan.md` for the clean-deposit boundary and remaining comprehensive-analysis gates.
+8. `R/00_setup.R`, `R/01_data_cleaning.R`, `R/10_spatial_data.R`, and `R/02_prepare_model_data.R` for the data contract.
+9. `inst/stan/*.stan` plus `R/03_fit_model.R` for the model contract.
+10. `R/05_portfolio.R`, `R/08_occupancy_model.R`, `R/06_figures.R`, and `R/07_lecture_figures.R` for interpretation and communication.
+11. `docs/talk-model-claim-control-sheet.md` before turning any model result into talk language.
 
 The maintained core pipeline lives in `R/` (shared library), `Code/` (data prep + model fits + `Code/probes/` for post-fit dossiers), `_targets.R`, `inst/stan/`, and `tests/testthat/`.
+
+For the maintained promoted-baseline refresh, run:
+
+```sh
+Rscript --vanilla run_promoted_analysis.R --mode=minimal
+```
+
+That regenerates the promoted `m1_stier_11` fit-quality, portfolio, 9-focal,
+and positive-spawn caveat outputs from restored saved fit artifacts. It also
+writes `Output/diagnostics/promoted_analysis_sessionInfo.txt`. To refresh the
+model/status ledgers as well, use `--mode=ledgers`. To deliberately rerun the
+full local Stan fit before refreshing diagnostics, use `--mode=refit`; that is
+slow and should not be the default reviewer path when saved artifacts are
+available.
+
+The data deposit manifest is regenerated with:
+
+```sh
+Rscript --vanilla tools/build_data_manifest.R
+```
+
+It writes `docs/data_manifest.{tsv,md}` with checksums and access labels.
 
 Derivative analyses live under `analysis/<workstream>/`:
 - `analysis/00_core_model/` — manuscript workspace for the M1–M5 paper
@@ -326,7 +350,10 @@ stier-2027-herring-metapopulation/
 └── README.md           this file
 ```
 
-For Stan model inventory and primary-vs-archival classification see `docs/stan-model-map.md`.
+For Stan model inventory and primary-vs-archival classification see
+`docs/stan-model-map.md`. For the maintained statistical model-family
+inventory and claim gate, see `docs/statistical_model_inventory.md` and
+`docs/statistical_model_inventory.tsv`.
 
 ## Stan Directory Note
 
@@ -352,14 +379,15 @@ For a first read-through, start with the primary files listed in `docs/stan-mode
 ## Getting Started
 
 ```r
-# Install cmdstanr (requires CmdStan)
-install.packages("cmdstanr", repos = c("https://mc-stan.org/r-packages/", getOption("repos")))
-cmdstanr::install_cmdstan()
+# Restore or install R package dependencies as documented for the current run.
+# A root renv.lock is not yet maintained for this repository.
 
-# Install project packages
-# renv::restore()  # once renv is initialized
+# Regenerate promoted-baseline diagnostics and figures from saved fit artifacts.
+system("Rscript --vanilla run_promoted_analysis.R --mode=minimal")
 
-# Run the pipeline
+# Optional: refresh the broader historical targets graph.
+# This graph is useful for development, but it is not the current promoted
+# manuscript-driver entrypoint.
 targets::tar_make()
 
 # Visualize the pipeline

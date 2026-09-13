@@ -1,7 +1,7 @@
 # AWS + Codex Model-Farm Lessons
 
 Generated: 2026-05-10
-Last updated: 2026-05-15
+Last updated: 2026-08-28
 
 This is a practical implementation log for connecting Codex to AWS so future
 projects can reuse the working pattern. Keep this updated with what actually
@@ -204,6 +204,64 @@ After Docker Desktop started, Docker reported:
 ```
 
 ## What Failed / What To Watch
+
+### GRIT R Site-Library Mismatch During Coastwide K-Fold
+
+Symptom:
+
+```text
+unable to load shared object '/usr/local/lib/R/site-library/rlang/libs/rlang.so':
+undefined symbol: SETLENGTH
+```
+
+During the 2026-08-04 coastwide K-fold run, original `m1_bc` fold-1 job
+`1069773` failed before Stan sampling while the wrapper tried to install unused
+R packages. Replacement jobs `1069798` and `1069806` then exposed that
+`hpc-13.grit.ucsb.edu` could not see/load the same usable RStan stack as the
+other compute nodes. The other folds reached sampling, so this was a GRIT
+wrapper/node setup failure rather than evidence against the model.
+
+Cause:
+
+The K-fold Slurm wrapper inherited the broader full-fit dependency installer
+(`janitor`, `loo`, `posterior`, `geosphere`, `jsonlite`, `httr`) even though the
+K-fold scoring script only needed `rstan`, `here`, and `tidyverse`. Installing
+unused packages forced R to touch a mismatched site-library `rlang`.
+
+Fix:
+
+- keep the K-fold wrapper dependency list minimal;
+- make package checks `tryCatch(requireNamespace(...))`-safe;
+- do not source broad project setup files in refit scripts unless their constants
+  are needed;
+- do not compile `rstan` inside science jobs; fail fast on missing packages and
+  repair the GRIT R library separately;
+- exclude known-bad nodes when the failure is node-specific;
+- resubmit only the failed fold. For this run, replacement job `1069811`
+  supersedes `1069773`, `1069798`, and `1069806`.
+
+The GRIT skill itself did not need updating for this error; the fix belongs in
+the project-specific Slurm wrapper. As of 2026-08-28, both coastwide GRIT
+wrappers now use a scratch-backed, version-matched user R library, ignore
+inherited site-library contamination, put run directories on
+`/home/hpc-scratch/$USER`, exclude `hpc-13.grit.ucsb.edu`, and fail before
+sampling when required packages are missing. A separate preflight helper,
+`hpc/submit_grit_bc_deps.sh`, repairs the GRIT user library outside the science
+fit jobs. The superseded home-backed preflight job `1091464` failed before any
+science fit because `BH`/`rstan` did not install cleanly in
+`/home/astier/R/x86_64-pc-linux-gnu-library/4.5`.
+
+2026-08-28 follow-up: `/home/astier` was still effectively quota-blocked after
+the failed preflight because `/home/astier/herring-bc-stage/results/` retained
+five duplicate 2.4-2.5 GB full-fit `.rds` files that had already been pulled
+to `analysis/05_bc_coastwide/output/` and `hpc/grit-results/`. Removing only
+those remote duplicates freed about 2.5 GB. `scp` still failed when overwriting
+small Slurm files on the home-backed staging path (`write remote ... Failure`),
+while `touch` and `rsync` both worked. The coastwide submit/pull helpers now
+use `rsync -e ssh` instead of `scp` for Slurm, tarball, and result transfer.
+Do not queue multiple full-fit jobs that copy multi-GB fit objects back to
+`/home` unless old remote fit duplicates have first been removed or a larger
+backed-up result location has been provisioned.
 
 ### AWS Access Portal Had No Accounts
 

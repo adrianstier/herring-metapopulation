@@ -16,7 +16,14 @@ suppressPackageStartupMessages({
 source(here::here("R", "00_setup.R"))
 source(here::here("R", "11_early_warning.R"))
 
-obj <- readRDS(here::here("analysis", "05_bc_coastwide", "output", "m1_bc_fit.rds"))
+MODEL_ID <- Sys.getenv("BC_MODEL_ID", unset = "m3_bc_marginal")
+fit_path <- here::here("analysis", "05_bc_coastwide", "output",
+                       paste0(MODEL_ID, "_fit.rds"))
+if (!file.exists(fit_path)) {
+  stop("Missing coastwide fit for BC_MODEL_ID=", MODEL_ID, ": ", fit_path)
+}
+
+obj <- readRDS(fit_path)
 fit <- obj$fit
 section_meta <- obj$section_meta
 stock_areas <- obj$stock_areas
@@ -37,6 +44,7 @@ for (sa in stock_areas) {
   occ <- mean(exp(z_mean[sec_idx, , drop = FALSE]) > 1, na.rm = TRUE)
 
   results[[length(results) + 1]] <- tibble(
+    model = MODEL_ID,
     stock_area = sa,
     metric = c("phi_synchrony", "cv_ratio", "occupancy_fraction"),
     value = c(phi, cv_ratio, occ))
@@ -47,6 +55,7 @@ write_csv(out, here::here("Output", "diagnostics", "bc_portfolio_metrics.csv"))
 writeLines(c("# BC portfolio metrics by stock area",
              "",
              paste("Generated:", format(Sys.time())),
+             paste("Model:", MODEL_ID),
              "",
              knitr::kable(out |> pivot_wider(names_from = metric,
                                               values_from = value))),

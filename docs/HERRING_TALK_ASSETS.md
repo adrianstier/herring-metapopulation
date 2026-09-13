@@ -788,3 +788,10 @@ Session-5 thread `19d538e24a40c585`. Shared agenda Doc id
   2026-05-19.md` (S1b session entry updated). **Attribution required**
   on the slide and in any derivative: *"Imagery: Esri World Imagery
   (Maxar / Sentinel-2 mosaic)"* — already baked into the slide footer.
+- **2026-07-31 (deposit cleanup boundary):** Cleaned local-only talk/runtime
+  debris from the working tree (`deck_build/node_modules/`, ignored imported
+  photos, Python caches, scratch QA JPGs, `.superpowers/`, `.worktrees/`,
+  `logs/`, `cloud/logs/`) without touching tracked talk source/provenance. Added
+  `docs/deposit-cleanup-and-analysis-completion-plan.md` to state that
+  `analysis/04_talks/2026-royalsociety/` remains a firewalled working context
+  but should be excluded from a clean paper/reviewer analysis deposit.

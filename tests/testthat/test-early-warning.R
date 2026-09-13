@@ -3,10 +3,42 @@
 # stier-2027-herring-metapopulation
 #
 # Run with: testthat::test_file("tests/testthat/test-early-warning.R")
+# Set RUN_EWS_REBUILDS=1 to rebuild expensive EWS output scripts during tests.
 # ============================================================================
 
 library(testthat)
 source(here::here("R", "11_early_warning.R"))
+
+ews_script <- function(script) {
+  here::here("analysis", "01_ews", "scripts", script)
+}
+
+run_ews_rebuilds <- function() {
+  tolower(Sys.getenv("RUN_EWS_REBUILDS")) %in% c("1", "true", "yes", "y")
+}
+
+maybe_rebuild_ews_output <- function(script, output_path) {
+  if (!run_ews_rebuilds()) {
+    skip_if_not(
+      file.exists(output_path),
+      paste0(basename(output_path), " absent; set RUN_EWS_REBUILDS=1 to rebuild")
+    )
+    return(invisible(FALSE))
+  }
+
+  out <- system2("Rscript", ews_script(script), stdout = TRUE, stderr = TRUE)
+  status <- attr(out, "status", exact = TRUE)
+  if (!is.null(status) && !identical(as.integer(status), 0L)) {
+    fail(paste(
+      script,
+      "failed with exit status",
+      status,
+      paste(utils::tail(out, 20), collapse = "\n"),
+      sep = "\n"
+    ))
+  }
+  invisible(TRUE)
+}
 
 test_that("EWS dependencies are installed", {
   for (pkg in c("earlywarnings", "spatialwarnings", "MARSS",
@@ -246,9 +278,8 @@ test_that("ews_detect_transitions strucchange-only mode (n < 2l+1) still detects
 test_that("data-layer builder writes both layers x both units with the right contract", {
   fit_path <- here::here("Data", "processed", "m1_stier_11_fit.rds")
   skip_if_not(file.exists(fit_path), "m1_stier_11_fit.rds absent")
-  out <- system2("Rscript", here::here("Code", "11_ews_00_data_layers.R"),
-                  stdout = TRUE, stderr = TRUE)
   f <- here::here("Output", "diagnostics", "ews_input_layers.rds")
+  maybe_rebuild_ews_output("11_ews_00_data_layers.R", f)
   expect_true(file.exists(f))
   L <- readRDS(f)
   expect_setequal(names(L),
@@ -269,10 +300,8 @@ test_that("data-layer builder writes both layers x both units with the right con
 # ── Task 3.1: generic aggregate EWS output-contract test ────────────────────
 test_that("generic aggregate EWS output: schema, layers, latent CI present", {
   skip_if_not(file.exists(here::here("Output","diagnostics","ews_input_layers.rds")))
-  out <- system2("Rscript",
-    here::here("Code","11_ews_01_generic_aggregate.R"),
-    stdout = TRUE, stderr = TRUE)
   f <- here::here("Output","diagnostics","ews_generic_aggregate.csv")
+  maybe_rebuild_ews_output("11_ews_01_generic_aggregate.R", f)
   expect_true(file.exists(f))
   d <- readr::read_csv(f, show_col_types = FALSE)
   needed <- c("layer","unit","detrend","win_frac","year",
@@ -293,9 +322,8 @@ test_that("generic aggregate EWS output: schema, layers, latent CI present", {
 # ── Task 3.2: spatial/synchrony EWS output-contract test ────────────────────
 test_that("spatial/synchrony EWS output: schema, phi in [0,1], latent CI, units", {
   skip_if_not(file.exists(here::here("Output","diagnostics","ews_input_layers.rds")))
-  system2("Rscript", here::here("Code","11_ews_02_spatial_synchrony.R"),
-          stdout = TRUE, stderr = TRUE)
   f <- here::here("Output","diagnostics","ews_spatial_synchrony.csv")
+  maybe_rebuild_ews_output("11_ews_02_spatial_synchrony.R", f)
   expect_true(file.exists(f))
   d <- readr::read_csv(f, show_col_types = FALSE)
   need <- c("layer","unit","window_len","window_mid",
@@ -318,9 +346,8 @@ test_that("spatial/synchrony EWS output: schema, phi in [0,1], latent CI, units"
 # ── Task 3.3: covariance leading-EOF / lambda_max + MAR(1) eigenvalue ───────
 test_that("covariance eigen + MAR(1) EWS output: schema, ranges, latent CI", {
   skip_if_not(file.exists(here::here("Output","diagnostics","ews_input_layers.rds")))
-  system2("Rscript", here::here("Code","11_ews_03_covariance_eigen.R"),
-          stdout = TRUE, stderr = TRUE)
   f <- here::here("Output","diagnostics","ews_covariance_eigen.csv")
+  maybe_rebuild_ews_output("11_ews_03_covariance_eigen.R", f)
   expect_true(file.exists(f))
   d <- readr::read_csv(f, show_col_types = FALSE)
   need <- c("layer","unit","window_len","window_mid",
@@ -344,10 +371,8 @@ test_that("covariance eigen + MAR(1) EWS output: schema, ranges, latent CI", {
 test_that("candidate transitions output: schema, documented eras present, convention", {
   skip_if_not(file.exists(here::here("Output","diagnostics","ews_input_layers.rds")))
   skip_if_not(file.exists(here::here("Output","diagnostics","ews_spatial_synchrony.csv")))
-  system2("Rscript",
-    here::here("Code","11_ews_04_candidate_transitions.R"),
-    stdout = TRUE, stderr = TRUE)
   f <- here::here("Output","diagnostics","ews_candidate_transitions.csv")
+  maybe_rebuild_ews_output("11_ews_04_candidate_transitions.R", f)
   expect_true(file.exists(f))
   d <- readr::read_csv(f, show_col_types = FALSE)
   expect_true(all(c("target","year","method","label","year_convention") %in% names(d)))
@@ -365,7 +390,7 @@ test_that("candidate transitions output: schema, documented eras present, conven
 
 test_that("surrogate significance output: schema, ranges, both pre_window variants", {
   f <- here::here("Output","diagnostics","ews_surrogate_significance.csv")
-  skip_if_not(file.exists(f), "ews_surrogate_significance.csv absent — run Code/11_ews_05_surrogate_significance.R first")
+  skip_if_not(file.exists(f), "ews_surrogate_significance.csv absent — run analysis/01_ews/scripts/11_ews_05_surrogate_significance.R first")
   d <- readr::read_csv(f, show_col_types = FALSE)
   expect_true(all(c("tier","layer","unit","indicator","window_def",
                     "pre_window","n","tau","p_value") %in% names(d)))
@@ -383,7 +408,7 @@ test_that("surrogate significance output: schema, ranges, both pre_window varian
 
 test_that("sensitivity grid output: schema, robust flag, leave-out coverage", {
   f <- here::here("Output","diagnostics","ews_sensitivity_grid.csv")
-  skip_if_not(file.exists(f), "ews_sensitivity_grid.csv absent — run Code/11_ews_06_sensitivity_grid.R first")
+  skip_if_not(file.exists(f), "ews_sensitivity_grid.csv absent — run analysis/01_ews/scripts/11_ews_06_sensitivity_grid.R first")
   d <- readr::read_csv(f, show_col_types = FALSE)
   expect_true(all(c("indicator","layer","unit","window","detrend","estimator",
                     "leave_out","tau","p_value","n","robust") %in% names(d)))
@@ -401,7 +426,7 @@ test_that("sensitivity grid output: schema, robust flag, leave-out coverage", {
 test_that("artifact audit: disqualified CSV + md present, schema sane", {
   fc <- here::here("Output","diagnostics","ews_survey_artifact_disqualified.csv")
   fm <- here::here("Output","diagnostics","ews_survey_artifact_audit.md")
-  skip_if_not(file.exists(fc), "ews_survey_artifact_disqualified.csv absent — run Code/11_ews_07_survey_artifact_audit.R first")
+  skip_if_not(file.exists(fc), "ews_survey_artifact_disqualified.csv absent — run analysis/01_ews/scripts/11_ews_07_survey_artifact_audit.R first")
   skip_if_not(file.exists(fm))
   d <- readr::read_csv(fc, show_col_types = FALSE)
   expect_true(all(c("indicator","artifact_tau_median","artifact_pos_sig_frac",
@@ -417,7 +442,7 @@ test_that("artifact audit: disqualified CSV + md present, schema sane", {
 test_that("power/control output: CSV + md present, both scenarios, gate verdicts", {
   fc <- here::here("Output","diagnostics","ews_controls_power.csv")
   fm <- here::here("Output","diagnostics","ews_controls_power.md")
-  skip_if_not(file.exists(fc), "ews_controls_power.csv absent — run Code/11_ews_08_controls_power.R first")
+  skip_if_not(file.exists(fc), "ews_controls_power.csv absent — run analysis/01_ews/scripts/11_ews_08_controls_power.R first")
   skip_if_not(file.exists(fm))
   d <- readr::read_csv(fc, show_col_types = FALSE)
   expect_true(all(c("scenario","indicator","detect_rate","n_rep","n_finite_traj","power_gate_pass") %in% names(d)))
@@ -433,7 +458,7 @@ test_that("power/control output: CSV + md present, both scenarios, gate verdicts
 test_that("lead-time matrix: schema, confidence ladder, consistency invariant, talk-grade rows", {
   fc <- here::here("Output","diagnostics","ews_lead_time_matrix.csv")
   fm <- here::here("Output","diagnostics","ews_lead_time_matrix.md")
-  skip_if_not(file.exists(fc), "ews_lead_time_matrix.csv absent — run Code/11_ews_09_lead_time_matrix.R first")
+  skip_if_not(file.exists(fc), "ews_lead_time_matrix.csv absent — run analysis/01_ews/scripts/11_ews_09_lead_time_matrix.R first")
   skip_if_not(file.exists(fm))
   d <- readr::read_csv(fc, show_col_types = FALSE)
   expect_true(all(c("transition_target","transition_year","transition_method",
@@ -469,7 +494,7 @@ test_that("lead-time matrix: schema, confidence ladder, consistency invariant, t
 test_that("synthesis + claim-control md files: presence, sections, anti-hardcoded-number sniff", {
   fs <- here::here("Output","diagnostics","ews_synthesis.md")
   fc <- here::here("Output","diagnostics","ews_claim_control.md")
-  skip_if_not(file.exists(fs), "ews_synthesis.md absent — run Code/11_ews_10_synthesis.R first")
+  skip_if_not(file.exists(fs), "ews_synthesis.md absent — run analysis/01_ews/scripts/11_ews_10_synthesis.R first")
   skip_if_not(file.exists(fc))
   ms <- readLines(fs); mc <- readLines(fc)
   for (s in c("The question","Battery","Lead-time results","Does synchrony lead",

@@ -17,7 +17,14 @@ suppressPackageStartupMessages({
 
 source(here::here("R", "00_setup.R"))
 
-obj <- readRDS(here::here("analysis", "05_bc_coastwide", "output", "m1_bc_fit.rds"))
+MODEL_ID <- Sys.getenv("BC_MODEL_ID", unset = "m3_bc_marginal")
+fit_path <- here::here("analysis", "05_bc_coastwide", "output",
+                       paste0(MODEL_ID, "_fit.rds"))
+if (!file.exists(fit_path)) {
+  stop("Missing coastwide fit for BC_MODEL_ID=", MODEL_ID, ": ", fit_path)
+}
+
+obj <- readRDS(fit_path)
 fit <- obj$fit
 section_meta <- obj$section_meta
 stock_areas <- obj$stock_areas
@@ -25,7 +32,7 @@ stock_areas <- obj$stock_areas
 z_mean <- apply(rstan::extract(fit, "z")$z, c(2, 3), mean)
 sec_year <- crossing(section_idx = seq_len(nrow(section_meta)),
                      year = YEARS) |>
-  mutate(z = as.numeric(z_mean),
+  mutate(z = as.numeric(t(z_mean)),
          stock_area = rep(section_meta$stock_area, each = length(YEARS)))
 
 fig_dir <- here::here("Output", "figures")
@@ -63,7 +70,7 @@ write_legend("bc_coastwide_fig1",
           "Each point is one section colored by trend (red = declining,",
           "blue = increasing). Stock areas:",
           paste(stock_areas, collapse = ", ")),
-    "Data source: m1_bc_fit.rds, Output/figures/bc_coastwide_fig1.{pdf,png}."))
+    paste0("Data source: ", MODEL_ID, "_fit.rds, Output/figures/bc_coastwide_fig1.{pdf,png}.")))
 
 # ── Fig 2: Section-level posterior trajectories, facetted by stock area ──
 p2 <- ggplot(sec_year |> filter(stock_area %in% c("HG", "PRD", "CC", "SoG", "WCVI")),
@@ -77,7 +84,7 @@ write_legend("bc_coastwide_fig2",
   c("# Figure 2 — Section-level posterior trajectories",
     "",
     "Posterior-mean log-biomass per section, faceted by major stock area.",
-    "Each line is one section. M1 fit (m1_bc_fit.rds)."))
+    paste0("Each line is one section. Model: ", MODEL_ID, ".")))
 
 # ── Fig 3: Recovery curves anchored to fishery events ──
 ca <- read_csv(here::here("Output", "diagnostics", "bc_comparative_areas.csv"),
@@ -119,60 +126,77 @@ write_legend("bc_coastwide_fig4",
     "",
     "Loreau-de Mazancourt synchrony (phi), CV-ratio (portfolio effect),",
     "and occupancy fraction (sections active per year) by stock area.",
-    "Computed from posterior-mean log-biomass; M1 fit."))
+    paste0("Computed from posterior-mean log-biomass; model: ", MODEL_ID, ".")))
 
-# ── Fig 5: Driver decomposition via posterior correlation with z increments ──
-# Compute correlation of each driver term with year-on-year z increments
-# (a first-pass variance attribution; refine to full process-equation variance
-# decomposition in a follow-on iteration if needed).
-m5_path <- here::here("analysis", "05_bc_coastwide", "output", "m5_bc_fit.rds")
-if (!file.exists(m5_path)) {
-  stop("Figure 5 requires the M5 fit. Run scripts/08_fit_m5_bc.R first.")
+# ── Fig 5: Model comparison + use status ──
+status_path <- here::here("Output", "diagnostics",
+                          "bc_coastwide_model_status_table.csv")
+if (!file.exists(status_path)) {
+  stop("Figure 5 requires Output/diagnostics/bc_coastwide_model_status_table.csv. Run scripts/09_diagnostics.R first.")
 }
-m5 <- readRDS(m5_path)
-z5 <- apply(rstan::extract(m5$fit, "z")$z, c(2, 3), mean)
-dz <- z5[, -1] - z5[, -ncol(z5)]                    # z increments
-catch <- read_csv(here::here("Data", "processed",
-                              "bc_catch_by_section_year_gear.csv"),
-                  show_col_types = FALSE) |>
-  group_by(year, stock_area) |>
-  summarise(catch = sum(catch_tonnes, na.rm = TRUE), .groups = "drop") |>
-  pivot_wider(names_from = stock_area, values_from = catch, values_fill = 0)
-pred_arr <- rstan::extract(m5$fit, "gamma_pred")$gamma_pred
-pred_effect <- apply(pred_arr, c(2, 3), mean)        # species × stock_area mean
-intrinsic_var <- var(as.numeric(dz), na.rm = TRUE)
-# Per-driver contribution = variance of (driver-coefficient × covariate) term
-# averaged across sections. Approximation: equals variance of the driver-only
-# process residual.
-drv <- tibble(
-  driver = c("intrinsic", "fishing", "predators"),
-  variance_fraction = c(
-    var(apply(dz, 1, mean), na.rm = TRUE) / intrinsic_var,
-    var(rowSums(as.matrix(catch[, -1])), na.rm = TRUE) /
-      (var(rowSums(as.matrix(catch[, -1])), na.rm = TRUE) + intrinsic_var),
-    mean(pred_effect^2, na.rm = TRUE) /
-      (mean(pred_effect^2, na.rm = TRUE) + intrinsic_var))) |>
-  mutate(variance_fraction = pmin(pmax(variance_fraction, 0), 1)) |>
-  mutate(variance_fraction = variance_fraction / sum(variance_fraction))
-p5 <- ggplot(drv, aes(x = "", y = variance_fraction, fill = driver)) +
-  geom_col() +
-  coord_polar(theta = "y") +
-  scale_fill_manual(values = c("#E69F00", "#56B4E9", "#009E73")) +
-  labs(title = "Driver decomposition (first-pass)") +
+status <- read_csv(status_path, show_col_types = FALSE) |>
+  mutate(
+    model = factor(model, levels = c("m1_bc_marginal", "m3_bc_marginal",
+                                     "m1_bc", "m3_bc", "m5_bc")),
+    decision_label = case_when(
+      model == "m3_bc_marginal" ~ "usable sensitivity",
+      model == "m1_bc_marginal" ~ "repaired comparator",
+      model %in% c("m1_bc", "m3_bc") ~ "failed sampler gate",
+      TRUE ~ "failed"
+    )
+  )
+status_cv <- status |>
+  filter(model %in% c("m1_bc_marginal", "m3_bc_marginal")) |>
+  mutate(
+    delta_elpd = elpd_loo - max(elpd_loo, na.rm = TRUE),
+    label = case_when(
+      model == "m3_bc_marginal" ~ paste0("usable\nRMSE ",
+                                         round(coastwide_rmse_log10, 3)),
+      TRUE ~ paste0("comparator\nRMSE ", round(coastwide_rmse_log10, 3))
+    ),
+    label_y = if_else(abs(delta_elpd) < 1e-8, -8, delta_elpd / 2)
+  )
+m3_gate <- status |>
+  filter(model == "m3_bc_marginal") |>
+  slice(1)
+diff_gate <- status |>
+  filter(model == "m1_bc_marginal") |>
+  slice(1)
+contrast_label <- paste0(
+  "m3_marginal - m1_marginal = +",
+  round(m3_gate$elpd_loo - diff_gate$elpd_loo, 1),
+  " PSIS-LOO elpd; both max Pareto-k < 0.7"
+)
+p5 <- ggplot(status_cv, aes(x = model, y = delta_elpd,
+                            fill = decision_label)) +
+  geom_col(width = 0.65) +
+  geom_hline(yintercept = 0, linewidth = 0.3) +
+  geom_text(aes(y = label_y, label = label), size = 3,
+            lineheight = 0.95, na.rm = TRUE) +
+  scale_fill_manual(values = c("repaired comparator" = "#56B4E9",
+                               "usable sensitivity" = "#009E73",
+                               "failed sampler gate" = "#E69F00",
+                               "failed" = "#D55E00")) +
+  labs(x = "Coastwide branch",
+       y = "Delta PSIS-LOO elpd",
+       fill = "Use status",
+       title = "Coastwide model comparison and claim gate",
+       subtitle = contrast_label) +
+  coord_cartesian(ylim = c(min(status_cv$delta_elpd, na.rm = TRUE) - 12, 6),
+                  clip = "off") +
   theme_pub(10) +
-  theme(axis.title = element_blank(),
-        axis.text = element_blank(),
-        axis.ticks = element_blank())
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
 save_fig(p5, "bc_coastwide_fig5", w = 120, h = 100)
 write_legend("bc_coastwide_fig5",
-  c("# Figure 5 — Driver variance decomposition",
+  c("# Figure 5 — Coastwide model comparison and claim gate",
     "",
-    "First-pass variance attribution of section-level posterior-mean log-biomass",
-    "increments to intrinsic dynamics, fishing pressure (commercial catch),",
-    "and predator effects (gamma_pred posterior magnitudes). Fractions are",
-    "normalized to sum to 1. Refinement to a full process-equation variance",
-    "decomposition (re-fitting with drivers zeroed in turn) is a candidate",
-    "follow-on if reviewer feedback requires it. Source: m5_bc_fit.rds plus",
-    "Data/processed/bc_catch_by_section_year_gear.csv."))
+    "Delta expected log predictive density from PSIS-LOO among the",
+    "marginalized state-space repair branches, relative to `m3_bc_marginal`.",
+    "`m3_bc_marginal` clears sampler and Pareto-k gates and is the current",
+    "statistically usable coastwide sensitivity. It is a geometry/LOO repair,",
+    "not a new biological mechanism.",
+    "Original full-state M1/M3 and M5 remain failed or held by sampler gates.",
+    "Sources: Output/diagnostics/bc_coastwide_model_status_table.csv and",
+    "Output/diagnostics/bc_marginal_repair_readout.md."))
 
 cat("All 5 figures + legends rendered.\n")

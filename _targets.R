@@ -17,6 +17,10 @@
 # Read this file after the maintained function files and primary Stan models.
 # The transformation logic lives in `R/`; `_targets.R` is the orchestration
 # summary that wires those contracts together into a reproducible pipeline.
+# As of the 2026-08 cleanup pass, the promoted manuscript refresh is
+# `run_promoted_analysis.R`, not this older broad development graph. Rebuild
+# this target graph around `m1_stier_11` before using `targets::tar_make()` as
+# the reviewer-facing entrypoint.
 
 library(targets)
 library(tarchetypes)
