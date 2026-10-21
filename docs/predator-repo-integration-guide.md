@@ -1,3 +1,5 @@
+> **2026-10-21:** Annual predator import now fails closed on incomplete source coverage. Existing imported pressure/Mp covariates and derived predator fits remain held. See the source repository `docs/HG_COVERAGE_REPAIR_2026-10-21.md`. This does not change the promoted `m1_stier_11` baseline.
+
 # Predator Repo Integration Guide
 
 Created: 2026-05-16

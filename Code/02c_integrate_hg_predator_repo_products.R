@@ -84,6 +84,14 @@ species_path <- file.path(consumption_dir, "HG_consumption_by_species_year_AUDIT
 mp_path <- file.path(consumption_dir, "HG_Mp_sensitivity_AUDITED.csv")
 
 pressure_tbl <- read_csv(pressure_path, show_col_types = FALSE)
+# Incomplete demand is not an annual covariate that may be endpoint-filled.
+required_years <- 1951:2024
+if (!("coverage_complete" %in% names(pressure_tbl)) ||
+    !all(required_years %in% pressure_tbl$year) ||
+    !all(pressure_tbl$coverage_complete[match(required_years, pressure_tbl$year)] %in% TRUE)) {
+  stop("Predator import held: annual full-roster coverage is incomplete. See sibling docs/HG_COVERAGE_REPAIR_2026-10-21.md; existing predator products remain unvalidated. Baseline m1_stier_11 is unchanged.")
+}
+
 covariate_tbl <- read_csv(covariate_path, show_col_types = FALSE)
 group_tbl <- read_csv(group_path, show_col_types = FALSE)
 species_tbl <- read_csv(species_path, show_col_types = FALSE)
